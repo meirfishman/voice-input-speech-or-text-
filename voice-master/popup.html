@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>VoiceMaster</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      width: 320px; 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+    }
+    
+    .header {
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-align: center;
+    }
+    .header h1 { font-size: 18px; font-weight: 600; }
+    .header p { font-size: 11px; opacity: 0.9; margin-top: 4px; }
+    
+    .main {
+      padding: 24px 20px;
+      text-align: center;
+      background: white;
+    }
+    
+    .mic-btn {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      cursor: pointer;
+      margin: 0 auto 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+    }
+    .mic-btn:hover { transform: scale(1.05); }
+    .mic-btn.recording {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+      50% { box-shadow: 0 0 0 15px rgba(239,68,68,0); }
+    }
+    .mic-btn svg { width: 36px; height: 36px; }
+    
+    .status { font-size: 14px; color: #666; margin-bottom: 8px; }
+    .shortcut { font-size: 11px; color: #999; }
+    .shortcut kbd { 
+      background: #eee; 
+      padding: 2px 6px; 
+      border-radius: 4px; 
+      font-family: inherit;
+    }
+    
+    .settings {
+      padding: 16px 20px;
+      border-top: 1px solid #eee;
+      background: #fafafa;
+    }
+    
+    .setting {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+    }
+    .setting label { font-size: 13px; color: #444; }
+    .setting select {
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 12px;
+      background: white;
+      max-width: 130px;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 8px;
+      padding: 16px 20px;
+      background: white;
+      border-top: 1px solid #eee;
+    }
+    .actions button {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: white;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .actions button:hover { background: #f5f5f5; }
+    
+    .footer {
+      padding: 12px 20px;
+      text-align: center;
+      background: #f5f5f5;
+      border-top: 1px solid #eee;
+    }
+    .footer span { font-size: 10px; color: #999; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎤 VoiceMaster</h1>
+    <p>All features FREE • No limits</p>
+  </div>
+  
+  <div class="main">
+    <button class="mic-btn" id="mic-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+      </svg>
+    </button>
+    <p class="status" id="status">Click to start dictating</p>
+    <p class="shortcut">Shortcut: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>9</kbd></p>
+  </div>
+  
+  <div class="settings">
+    <div class="setting">
+      <label>Language</label>
+      <select id="language">
+        <option value="en-US">English (US)</option>
+        <option value="en-GB">English (UK)</option>
+        <option value="es-ES">Spanish</option>
+        <option value="fr-FR">French</option>
+        <option value="de-DE">German</option>
+        <option value="it-IT">Italian</option>
+        <option value="pt-BR">Portuguese</option>
+        <option value="zh-CN">Chinese</option>
+        <option value="ja-JP">Japanese</option>
+        <option value="ko-KR">Korean</option>
+        <option value="ru-RU">Russian</option>
+        <option value="ar-SA">Arabic</option>
+        <option value="hi-IN">Hindi</option>
+      </select>
+    </div>
+    <div class="setting">
+      <label>🔊 Sound ON</label>
+      <select id="sound-on">
+        <option value="none">None</option>
+        <optgroup label="Soft">
+          <option value="soft-on" selected>Soft On</option>
+          <option value="soft-chime">Soft Chime</option>
+          <option value="gentle-on">Gentle On</option>
+        </optgroup>
+        <optgroup label="Beeps">
+          <option value="beep-high">Beep High</option>
+          <option value="beep-low">Beep Low</option>
+          <option value="beep-double">Double Beep</option>
+          <option value="beep-triple">Triple Beep</option>
+        </optgroup>
+        <optgroup label="Tech">
+          <option value="tech-blip">Tech Blip</option>
+          <option value="tech-click">Tech Click</option>
+        </optgroup>
+        <optgroup label="Musical">
+          <option value="ding">Ding</option>
+          <option value="chime-up">Chime Up</option>
+          <option value="notify-1">Notify 1</option>
+          <option value="notify-2">Notify 2</option>
+          <option value="notify-3">Notify 3</option>
+        </optgroup>
+        <optgroup label="Rising">
+          <option value="rise-fast">Rise Fast</option>
+          <option value="rise-slow">Rise Slow</option>
+          <option value="modern-on">Modern On</option>
+        </optgroup>
+        <optgroup label="Pops">
+          <option value="pop-high">Pop High</option>
+          <option value="pop-mid">Pop Mid</option>
+          <option value="boop">Boop</option>
+        </optgroup>
+        <optgroup label="Minimal">
+          <option value="tick">Tick</option>
+          <option value="tap">Tap</option>
+          <option value="min-click">Min Click</option>
+          <option value="crisp-1">Crisp 1</option>
+        </optgroup>
+        <optgroup label="Classic">
+          <option value="classic-on">Classic On</option>
+          <option value="retro-1">Retro 1</option>
+          <option value="alert-1">Alert 1</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="setting">
+      <label>🔇 Sound OFF</label>
+      <select id="sound-off">
+        <option value="none">None</option>
+        <optgroup label="Soft">
+          <option value="soft-off" selected>Soft Off</option>
+          <option value="gentle-off">Gentle Off</option>
+        </optgroup>
+        <optgroup label="Beeps">
+          <option value="beep-low">Beep Low</option>
+          <option value="beep-high">Beep High</option>
+          <option value="beep-double">Double Beep</option>
+        </optgroup>
+        <optgroup label="Tech">
+          <option value="tech-buzz">Tech Buzz</option>
+          <option value="tech-click">Tech Click</option>
+        </optgroup>
+        <optgroup label="Musical">
+          <option value="dong">Dong</option>
+          <option value="chime-down">Chime Down</option>
+          <option value="blip-blop">Blip Blop</option>
+        </optgroup>
+        <optgroup label="Falling">
+          <option value="fall-fast">Fall Fast</option>
+          <option value="fall-slow">Fall Slow</option>
+          <option value="modern-off">Modern Off</option>
+        </optgroup>
+        <optgroup label="Pops">
+          <option value="pop-low">Pop Low</option>
+          <option value="pop-mid">Pop Mid</option>
+        </optgroup>
+        <optgroup label="Minimal">
+          <option value="tock">Tock</option>
+          <option value="tap">Tap</option>
+          <option value="min-tap">Min Tap</option>
+          <option value="crisp-2">Crisp 2</option>
+        </optgroup>
+        <optgroup label="Classic">
+          <option value="classic-off">Classic Off</option>
+          <option value="retro-2">Retro 2</option>
+          <option value="alert-2">Alert 2</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="setting" style="justify-content: center; padding-top: 12px;">
+      <button id="save-sounds-btn" style="padding: 10px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">💾 SAVE SOUNDS</button>
+    </div>
+    <div id="save-feedback" style="text-align: center; padding: 8px; color: #22c55e; font-weight: 600; display: none;">✓ SAVED!</div>
+  </div>
+  
+  <div class="actions">
+    <button id="dictation-box-btn">📝 Dictation Box</button>
+    <button id="reset-mic-btn">📍 Reset Mic</button>
+  </div>
+  
+  <div class="footer">
+    <span>v1.3 • Unlimited dictation • Works everywhere</span>
+  </div>
+
+  <script>
+    const micBtn = document.getElementById('mic-btn');
+    const status = document.getElementById('status');
+    const langSelect = document.getElementById('language');
+    const soundOnSelect = document.getElementById('sound-on');
+    const soundOffSelect = document.getElementById('sound-off');
+    const dictBoxBtn = document.getElementById('dictation-box-btn');
+    
+    let isRecording = false;
+    
+    // Check current state
+    chrome.runtime.sendMessage({ action: 'getState' }, (res) => {
+      if (res?.isRecording) {
+        isRecording = true;
+        micBtn.classList.add('recording');
+        status.textContent = '🔴 Recording...';
+      }
+    });
+    
+    // Mic button click
+    micBtn.onclick = async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) return;
+      
+      chrome.tabs.sendMessage(tab.id, { action: 'toggleDictation' });
+      
+      isRecording = !isRecording;
+      micBtn.classList.toggle('recording', isRecording);
+      status.textContent = isRecording ? '🔴 Recording...' : 'Click to start dictating';
+    };
+    
+    // Sound ON change - just play preview
+    soundOnSelect.onchange = async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) chrome.tabs.sendMessage(tab.id, { action: 'playSound', sound: soundOnSelect.value });
+    };
+    
+    // Sound OFF change - just play preview
+    soundOffSelect.onchange = async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) chrome.tabs.sendMessage(tab.id, { action: 'playSound', sound: soundOffSelect.value });
+    };
+    
+    // SAVE button - manual save with feedback
+    document.getElementById('save-sounds-btn').onclick = () => {
+      const settings = {
+        soundOn: soundOnSelect.value,
+        soundOff: soundOffSelect.value,
+        language: langSelect.value
+      };
+      
+      chrome.storage.local.set(settings, () => {
+        if (chrome.runtime.lastError) {
+          alert('Error saving: ' + chrome.runtime.lastError.message);
+        } else {
+          const feedback = document.getElementById('save-feedback');
+          feedback.style.display = 'block';
+          feedback.textContent = '✓ SAVED! ON=' + settings.soundOn + ', OFF=' + settings.soundOff;
+          setTimeout(() => { feedback.style.display = 'none'; }, 3000);
+        }
+      });
+    };
+    
+    // Load saved settings on popup open
+    chrome.storage.local.get(['language', 'soundOn', 'soundOff'], (data) => {
+      if (data.language) langSelect.value = data.language;
+      if (data.soundOn) soundOnSelect.value = data.soundOn;
+      if (data.soundOff) soundOffSelect.value = data.soundOff;
+    });
+    
+    // Dictation box button
+    dictBoxBtn.onclick = async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        chrome.tabs.sendMessage(tab.id, { action: 'toggleDictationBox' });
+        window.close();
+      }
+    };
+    
+    // Reset mic position button
+    document.getElementById('reset-mic-btn').onclick = async () => {
+      chrome.storage.local.remove('micPosition');
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        chrome.tabs.sendMessage(tab.id, { action: 'resetMicPosition' });
+      }
+    };
+  </script>
+</body>
+</html>

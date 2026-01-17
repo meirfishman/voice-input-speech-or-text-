@@ -1,0 +1,186 @@
+/* VoiceMaster Styles - Light theme like Voice In */
+
+/* ==================== FLOATING MIC BUTTON ==================== */
+#vm-mic {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  transition: all 0.3s ease;
+  user-select: none;
+}
+
+#vm-mic:active {
+  cursor: grabbing;
+}
+
+#vm-mic:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+#vm-mic svg {
+  width: 28px;
+  height: 28px;
+  color: white;
+}
+
+#vm-mic.recording {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+  animation: vm-pulse 1.5s infinite;
+}
+
+@keyframes vm-pulse {
+  0%, 100% { box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 4px 30px rgba(239, 68, 68, 0.8); }
+}
+
+/* ==================== DICTATION BOX - BIG & LIGHT ==================== */
+#vm-box {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  max-width: 90vw;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+}
+
+#vm-box .vm-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #e8e8e8;
+  border-bottom: 1px solid #ddd;
+  cursor: move;
+  user-select: none;
+}
+
+#vm-box .vm-box-header span {
+  font-weight: 600;
+  font-size: 16px;
+  color: #333;
+}
+
+#vm-box .vm-box-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: #ccc;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+#vm-box .vm-box-close:hover {
+  background: #bbb;
+  color: #333;
+}
+
+#vm-box textarea {
+  width: 100%;
+  height: 300px;
+  padding: 20px;
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: 18px;
+  line-height: 1.6;
+  font-family: inherit;
+  box-sizing: border-box;
+  background: #fafafa;
+  color: #222;
+}
+
+#vm-box textarea::placeholder {
+  color: #999;
+}
+
+#vm-box .vm-box-footer {
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #e8e8e8;
+  border-top: 1px solid #ddd;
+}
+
+#vm-box .vm-box-footer button {
+  padding: 10px 20px;
+  border: 1px solid #ccc;
+  background: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #444;
+  transition: all 0.2s;
+}
+
+#vm-box .vm-box-footer button:hover {
+  background: #f0f0f0;
+  border-color: #aaa;
+}
+
+/* ==================== STATUS INDICATOR - BIG & LIGHT ==================== */
+#vm-status {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-100px);
+  background: #f0f0f0;
+  color: #333;
+  padding: 16px 28px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  transition: transform 0.3s ease;
+  max-width: 80vw;
+  text-align: center;
+}
+
+#vm-status.visible {
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 700px) {
+  #vm-box {
+    width: 95vw;
+  }
+  
+  #vm-box textarea {
+    height: 250px;
+    font-size: 16px;
+  }
+  
+  #vm-status {
+    font-size: 16px;
+    padding: 14px 24px;
+  }
+}
