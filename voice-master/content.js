@@ -13,6 +13,7 @@
   let statusIndicator = null;
   let currentElement = null;
   let lastText = '';
+  let liveInsertion = null;
 
   // ==================== SPEECH RECOGNITION ====================
   
@@ -68,14 +69,18 @@
         }
       }
       
-      if (interimTranscript) showStatus(interimTranscript);
-      
       if (finalTranscript) {
-        const processed = processCommands(finalTranscript);
-        if (processed.trim()) {
-          insertText(processed);
-          lastText = processed;
+        const processedFinal = processCommands(finalTranscript);
+        if (processedFinal.trim()) {
+          commitLiveText(processedFinal);
+          lastText = processedFinal;
         }
+      }
+
+      if (interimTranscript) {
+        const processedInterim = processCommands(interimTranscript);
+        showStatus(processedInterim);
+        updateLiveText(processedInterim);
       }
     };
     
@@ -134,11 +139,12 @@
   // ==================== TEXT INSERTION ====================
   
   function insertText(text) {
+    clearLiveInsertion();
     // Check if dictation box textarea is focused - only then insert there
     if (dictationBox && dictationBox.style.display !== 'none') {
       const textarea = dictationBox.querySelector('textarea');
       if (textarea && document.activeElement === textarea) {
-        textarea.value += (textarea.value ? ' ' : '') + text;
+        textarea.value += (textarea.value ? ' ' : '') + text.trim();
         return;
       }
     }
@@ -170,7 +176,7 @@
   function tryExecCommand(el, text) {
     try {
       el.focus();
-      return document.execCommand('insertText', false, text + ' ');
+      return document.execCommand('insertText', false, formatSpokenText(text));
     } catch(e) {
       return false;
     }
@@ -184,7 +190,7 @@
       
       const start = el.selectionStart ?? el.value.length;
       const end = el.selectionEnd ?? start;
-      const textToInsert = text + ' ';
+      const textToInsert = formatSpokenText(text);
       const newValue = el.value.slice(0, start) + textToInsert + el.value.slice(end);
       
       // Use native setter for React/Google/YouTube
@@ -234,7 +240,7 @@
       
       const range = selection.getRangeAt(0);
       range.deleteContents();
-      const textNode = document.createTextNode(text + ' ');
+      const textNode = document.createTextNode(formatSpokenText(text));
       range.insertNode(textNode);
       range.setStartAfter(textNode);
       range.collapse(true);
@@ -296,6 +302,86 @@
     }
     
     return null;
+  }
+
+  function formatSpokenText(text) {
+    return text.replace(/\s+$/u, '') + ' ';
+  }
+
+  function isTextInput(el) {
+    if (!el) return false;
+    return el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && ['text','email','search','url','tel','password','number',''].includes((el.type || 'text').toLowerCase()));
+  }
+
+  function ensureLiveInsertion(target) {
+    if (liveInsertion && liveInsertion.target === target) return liveInsertion;
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? start;
+    liveInsertion = {
+      target,
+      baseValue: target.value,
+      start,
+      end,
+      rawText: ''
+    };
+    return liveInsertion;
+  }
+
+  function clearLiveInsertion() {
+    liveInsertion = null;
+  }
+
+  function applyInputValue(el, newValue, cursorPos, dataValue) {
+    const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+
+    if (nativeSetter) {
+      nativeSetter.call(el, newValue);
+    } else {
+      el.value = newValue;
+    }
+
+    try { el.setSelectionRange(cursorPos, cursorPos); } catch(e) {}
+
+    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Unidentified' }));
+    el.dispatchEvent(new InputEvent('input', {
+      bubbles: true,
+      cancelable: true,
+      inputType: 'insertText',
+      data: dataValue
+    }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Unidentified' }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function updateLiveText(text) {
+    const target = getTargetElement();
+    if (!target || !isTextInput(target)) {
+      return;
+    }
+
+    target.focus();
+    const insertText = formatSpokenText(text);
+    const live = ensureLiveInsertion(target);
+    live.rawText = text;
+    const newValue = live.baseValue.slice(0, live.start) + insertText + live.baseValue.slice(live.end);
+    const newPos = live.start + insertText.length;
+    applyInputValue(target, newValue, newPos, insertText);
+  }
+
+  function commitLiveText(text) {
+    if (liveInsertion && liveInsertion.target && isTextInput(liveInsertion.target)) {
+      const target = liveInsertion.target;
+      target.focus();
+      const insertText = formatSpokenText(text);
+      const newValue = liveInsertion.baseValue.slice(0, liveInsertion.start) + insertText + liveInsertion.baseValue.slice(liveInsertion.end);
+      const newPos = liveInsertion.start + insertText.length;
+      applyInputValue(target, newValue, newPos, insertText);
+      clearLiveInsertion();
+      return;
+    }
+
+    insertText(text);
   }
   
   function isEditable(el) {
@@ -678,6 +764,11 @@
   
   function stopRecording() {
     isRecording = false;
+    if (liveInsertion && liveInsertion.rawText.trim()) {
+      commitLiveText(liveInsertion.rawText);
+    } else {
+      clearLiveInsertion();
+    }
     if (recognition) {
       try {
         recognition.stop();
