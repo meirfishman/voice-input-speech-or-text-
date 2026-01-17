@@ -299,7 +299,30 @@
         language: langSelect.value
       };
 
+      // Save to storage
       await setStorage(settings);
+
+      // Verify save by reading back
+      const verify = await getStorage(['soundOn', 'soundOff', 'language']);
+      console.log('VoiceMaster SAVED:', settings);
+      console.log('VoiceMaster VERIFIED:', verify);
+
+      if (verify.soundOn !== settings.soundOn || verify.soundOff !== settings.soundOff) {
+        throw new Error('Save verification failed');
+      }
+
+      // Notify all tabs to refresh their settings
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'refreshSoundSettings',
+            soundOn: settings.soundOn,
+            soundOff: settings.soundOff
+          }).catch(() => {});
+        }
+      }
+
       showSaveFeedback(settings);
     };
 
