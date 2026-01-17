@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "VoiceMaster - Ultimate Speech to Text",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Unlimited voice dictation on any website. Advanced mode, custom commands, cross-tab dictation, and more - all free!",
   "permissions": [
     "storage",
