@@ -15,6 +15,10 @@
   let lastText = '';
   let liveInsertion = null;
 
+  // Cached sound settings - updated when user saves
+  let cachedSoundOn = null;
+  let cachedSoundOff = null;
+
   // ==================== SPEECH RECOGNITION ====================
   
   function createRecognition() {
@@ -182,34 +186,129 @@
     }
   }
   
-  function tryInputValue(el, text) {
-    if (!('value' in el)) return false;
-    
-    try {
-      el.focus();
-      
+  // Character-by-character input simulation for Google/YouTube/Gmail
+  async function typeCharByChar(el, text) {
+    el.focus();
+    const textToInsert = formatSpokenText(text);
+
+    for (let i = 0; i < textToInsert.length; i++) {
+      const char = textToInsert[i];
+      const keyCode = char.charCodeAt(0);
+
+      // Create realistic keyboard events
+      const keydownEvent = new KeyboardEvent('keydown', {
+        key: char,
+        code: char === ' ' ? 'Space' : 'Key' + char.toUpperCase(),
+        keyCode: keyCode,
+        which: keyCode,
+        bubbles: true,
+        cancelable: true,
+        composed: true
+      });
+
+      const keypressEvent = new KeyboardEvent('keypress', {
+        key: char,
+        code: char === ' ' ? 'Space' : 'Key' + char.toUpperCase(),
+        keyCode: keyCode,
+        charCode: keyCode,
+        which: keyCode,
+        bubbles: true,
+        cancelable: true,
+        composed: true
+      });
+
+      const keyupEvent = new KeyboardEvent('keyup', {
+        key: char,
+        code: char === ' ' ? 'Space' : 'Key' + char.toUpperCase(),
+        keyCode: keyCode,
+        which: keyCode,
+        bubbles: true,
+        cancelable: true,
+        composed: true
+      });
+
+      // Dispatch keydown
+      el.dispatchEvent(keydownEvent);
+
+      // Update value and dispatch input
       const start = el.selectionStart ?? el.value.length;
       const end = el.selectionEnd ?? start;
-      const textToInsert = formatSpokenText(text);
-      const newValue = el.value.slice(0, start) + textToInsert + el.value.slice(end);
-      
-      // Use native setter for React/Google/YouTube
       const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
       const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-      
+
+      const newValue = el.value.slice(0, start) + char + el.value.slice(end);
       if (nativeSetter) {
         nativeSetter.call(el, newValue);
       } else {
         el.value = newValue;
       }
-      
+
+      try { el.setSelectionRange(start + 1, start + 1); } catch(e) {}
+
+      // Dispatch keypress
+      el.dispatchEvent(keypressEvent);
+
+      // Dispatch input event
+      el.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        inputType: 'insertText',
+        data: char
+      }));
+
+      // Dispatch keyup
+      el.dispatchEvent(keyupEvent);
+
+      // Small delay between characters for framework processing
+      if (i % 5 === 4) {
+        await new Promise(r => setTimeout(r, 1));
+      }
+    }
+
+    // Final change event
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
+  function tryInputValue(el, text) {
+    if (!('value' in el)) return false;
+
+    const isGoogle = window.location.hostname.includes('google.');
+    const isYouTube = window.location.hostname.includes('youtube.');
+    const isGmail = window.location.hostname.includes('mail.google.');
+
+    // Use character-by-character for Google sites
+    if (isGoogle || isYouTube || isGmail) {
+      typeCharByChar(el, text);
+      return true;
+    }
+
+    try {
+      el.focus();
+
+      const start = el.selectionStart ?? el.value.length;
+      const end = el.selectionEnd ?? start;
+      const textToInsert = formatSpokenText(text);
+      const newValue = el.value.slice(0, start) + textToInsert + el.value.slice(end);
+
+      // Use native setter for React
+      const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+
+      if (nativeSetter) {
+        nativeSetter.call(el, newValue);
+      } else {
+        el.value = newValue;
+      }
+
       // Set cursor
       const newPos = start + textToInsert.length;
       try { el.setSelectionRange(newPos, newPos); } catch(e) {}
-      
-      // Fire keyboard events first (Google/YouTube need these)
+
+      // Fire keyboard events first
       el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Unidentified' }));
-      
+
       // Fire proper InputEvent
       el.dispatchEvent(new InputEvent('input', {
         bubbles: true,
@@ -217,13 +316,13 @@
         inputType: 'insertText',
         data: textToInsert
       }));
-      
+
       // Fire keyup
       el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Unidentified' }));
-      
+
       // Fire change
       el.dispatchEvent(new Event('change', { bubbles: true }));
-      
+
       return true;
     } catch(e) {
       return false;
@@ -232,12 +331,32 @@
   
   function tryContentEditable(el, text) {
     if (!el.isContentEditable) return false;
-    
+
+    const isYouTube = window.location.hostname.includes('youtube.');
+    const isGmail = window.location.hostname.includes('mail.google.');
+
     try {
       el.focus();
+
+      // For YouTube comments, they use a special placeholder system
+      if (isYouTube) {
+        // Clear placeholder if present
+        const placeholder = el.querySelector('#placeholder');
+        if (placeholder) {
+          placeholder.style.display = 'none';
+        }
+      }
+
       const selection = window.getSelection();
-      if (!selection.rangeCount) return false;
-      
+      if (!selection.rangeCount) {
+        // Create a range at end of element
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+
       const range = selection.getRangeAt(0);
       range.deleteContents();
       const textNode = document.createTextNode(formatSpokenText(text));
@@ -246,61 +365,109 @@
       range.collapse(true);
       selection.removeAllRanges();
       selection.addRange(range);
-      
-      el.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // Fire comprehensive events for YouTube/Gmail
+      if (isYouTube || isGmail) {
+        el.dispatchEvent(new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          inputType: 'insertText',
+          data: text
+        }));
+
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // For YouTube, also trigger their custom events
+        if (isYouTube) {
+          el.dispatchEvent(new KeyboardEvent('keyup', {
+            key: 'Unidentified',
+            bubbles: true,
+            cancelable: true,
+            composed: true
+          }));
+        }
+      } else {
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
       return true;
     } catch(e) {
+      console.error('VoiceMaster contenteditable error:', e);
       return false;
     }
   }
   
   function getTargetElement() {
-    // For Google/YouTube - ALWAYS try to find their search box first if on those sites
     const isGoogle = window.location.hostname.includes('google.');
     const isYouTube = window.location.hostname.includes('youtube.');
-    
-    if (isGoogle) {
-      const gInput = document.querySelector('textarea.gLFyf, input.gLFyf, textarea[name="q"], input[name="q"]');
+    const isGmail = window.location.hostname.includes('mail.google.');
+
+    // First check if user has an active focused element
+    const active = document.activeElement;
+    if (active && isEditable(active) && active !== document.body) {
+      currentElement = active;
+      return active;
+    }
+
+    // For Gmail - prioritize compose area
+    if (isGmail) {
+      const composeBody = document.querySelector('[aria-label="Message Body"][contenteditable="true"], div[g_editable="true"], div.editable[contenteditable="true"]');
+      if (composeBody) {
+        currentElement = composeBody;
+        return composeBody;
+      }
+      const subjectInput = document.querySelector('input[name="subjectbox"]');
+      if (subjectInput) {
+        currentElement = subjectInput;
+        return subjectInput;
+      }
+    }
+
+    // For Google Search
+    if (isGoogle && !isGmail) {
+      const gInput = document.querySelector('textarea.gLFyf, input.gLFyf, textarea[name="q"], input[name="q"], input[aria-label="Search"]');
       if (gInput) {
         currentElement = gInput;
         return gInput;
       }
     }
-    
+
+    // For YouTube
     if (isYouTube) {
+      // Check for comment box first (contenteditable)
+      const commentBox = document.querySelector('#contenteditable-root[contenteditable="true"], yt-formatted-string#contenteditable-root[contenteditable="true"]');
+      if (commentBox) {
+        currentElement = commentBox;
+        return commentBox;
+      }
+      // Then search box
       const ytInput = document.querySelector('input#search, input[name="search_query"]');
       if (ytInput) {
         currentElement = ytInput;
         return ytInput;
       }
     }
-    
+
     // Check stored element
     if (currentElement && document.contains(currentElement) && isEditable(currentElement)) {
       return currentElement;
     }
-    
-    // Check active element
-    const active = document.activeElement;
-    if (isEditable(active)) {
-      currentElement = active;
-      return active;
-    }
-    
+
     // Search for any focused editable
     const focused = document.querySelector('input:focus, textarea:focus, [contenteditable="true"]:focus');
     if (focused && isEditable(focused)) {
       currentElement = focused;
       return focused;
     }
-    
+
     // Generic search input fallback
     const searchInput = document.querySelector('input[type="search"], input[aria-label*="earch"]');
     if (searchInput) {
       currentElement = searchInput;
       return searchInput;
     }
-    
+
     return null;
   }
 
@@ -332,6 +499,10 @@
   }
 
   function applyInputValue(el, newValue, cursorPos, dataValue) {
+    const isGoogle = window.location.hostname.includes('google.');
+    const isYouTube = window.location.hostname.includes('youtube.');
+    const isGmail = window.location.hostname.includes('mail.google.');
+
     const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
 
@@ -343,14 +514,49 @@
 
     try { el.setSelectionRange(cursorPos, cursorPos); } catch(e) {}
 
-    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Unidentified' }));
-    el.dispatchEvent(new InputEvent('input', {
-      bubbles: true,
-      cancelable: true,
-      inputType: 'insertText',
-      data: dataValue
-    }));
-    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Unidentified' }));
+    // For Google/YouTube, fire more realistic events
+    if (isGoogle || isYouTube || isGmail) {
+      // Simulate typing completion
+      el.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Unidentified',
+        bubbles: true,
+        cancelable: true,
+        composed: true
+      }));
+
+      el.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        inputType: 'insertText',
+        data: dataValue
+      }));
+
+      el.dispatchEvent(new KeyboardEvent('keyup', {
+        key: 'Unidentified',
+        bubbles: true,
+        cancelable: true,
+        composed: true
+      }));
+
+      // Also trigger compositionend for some Google inputs
+      el.dispatchEvent(new CompositionEvent('compositionend', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        data: dataValue
+      }));
+    } else {
+      el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Unidentified' }));
+      el.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: dataValue
+      }));
+      el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Unidentified' }));
+    }
+
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
@@ -620,14 +826,33 @@
   }
   
   function playSoundOn() {
-    chrome.storage.local.get('soundOn', (data) => {
-      playSound(data.soundOn || 'soft-on');
-    });
+    if (cachedSoundOn) {
+      playSound(cachedSoundOn);
+    } else {
+      chrome.storage.local.get('soundOn', (data) => {
+        cachedSoundOn = data.soundOn || 'soft-on';
+        playSound(cachedSoundOn);
+      });
+    }
   }
-  
+
   function playSoundOff() {
-    chrome.storage.local.get('soundOff', (data) => {
-      playSound(data.soundOff || 'soft-off');
+    if (cachedSoundOff) {
+      playSound(cachedSoundOff);
+    } else {
+      chrome.storage.local.get('soundOff', (data) => {
+        cachedSoundOff = data.soundOff || 'soft-off';
+        playSound(cachedSoundOff);
+      });
+    }
+  }
+
+  // Load sound settings on init
+  function loadSoundSettings() {
+    chrome.storage.local.get(['soundOn', 'soundOff'], (data) => {
+      cachedSoundOn = data.soundOn || 'soft-on';
+      cachedSoundOff = data.soundOff || 'soft-off';
+      console.log('VoiceMaster sounds loaded:', cachedSoundOn, cachedSoundOff);
     });
   }
   
@@ -799,6 +1024,11 @@
       case 'playSound':
         playSound(msg.sound);
         break;
+      case 'refreshSoundSettings':
+        cachedSoundOn = msg.soundOn;
+        cachedSoundOff = msg.soundOff;
+        console.log('VoiceMaster sounds refreshed:', cachedSoundOn, cachedSoundOff);
+        break;
       case 'resetMicPosition':
         if (floatingMic) {
           floatingMic.style.left = 'auto';
@@ -831,6 +1061,9 @@
   
   // Create floating mic button (lazy - only creates DOM element, doesn't start anything)
   setTimeout(() => createFloatingMic(), 1000);
-  
+
+  // Load saved sound settings on init
+  loadSoundSettings();
+
   console.log('VoiceMaster loaded');
 })();
