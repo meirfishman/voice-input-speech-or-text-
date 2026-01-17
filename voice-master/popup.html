@@ -261,86 +261,110 @@
     const soundOnSelect = document.getElementById('sound-on');
     const soundOffSelect = document.getElementById('sound-off');
     const dictBoxBtn = document.getElementById('dictation-box-btn');
+    const saveSoundsBtn = document.getElementById('save-sounds-btn');
+    const saveFeedback = document.getElementById('save-feedback');
+    const resetMicBtn = document.getElementById('reset-mic-btn');
     
     let isRecording = false;
     
-    // Check current state
-    chrome.runtime.sendMessage({ action: 'getState' }, (res) => {
-      if (res?.isRecording) {
-        isRecording = true;
-        micBtn.classList.add('recording');
-        status.textContent = '🔴 Recording...';
-      }
+    const getStorage = (keys) => new Promise((resolve) => {
+      chrome.storage.local.get(keys, (data) => resolve(data));
     });
-    
-    // Mic button click
-    micBtn.onclick = async () => {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) return;
-      
-      chrome.tabs.sendMessage(tab.id, { action: 'toggleDictation' });
-      
-      isRecording = !isRecording;
-      micBtn.classList.toggle('recording', isRecording);
-      status.textContent = isRecording ? '🔴 Recording...' : 'Click to start dictating';
+
+    const setStorage = (data) => new Promise((resolve, reject) => {
+      chrome.storage.local.set(data, () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    const showSaveFeedback = (settings) => {
+      saveFeedback.style.display = 'block';
+      saveFeedback.textContent = '✓ SAVED! ON=' + settings.soundOn + ', OFF=' + settings.soundOff;
+      setTimeout(() => { saveFeedback.style.display = 'none'; }, 3000);
     };
-    
-    // Sound ON change - just play preview
-    soundOnSelect.onchange = async () => {
+
+    const previewSound = async (soundValue) => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id) chrome.tabs.sendMessage(tab.id, { action: 'playSound', sound: soundOnSelect.value });
+      if (tab?.id) chrome.tabs.sendMessage(tab.id, { action: 'playSound', sound: soundValue });
     };
-    
-    // Sound OFF change - just play preview
-    soundOffSelect.onchange = async () => {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id) chrome.tabs.sendMessage(tab.id, { action: 'playSound', sound: soundOffSelect.value });
-    };
-    
-    // SAVE button - manual save with feedback
-    document.getElementById('save-sounds-btn').onclick = () => {
+
+    const saveSoundSettings = async () => {
       const settings = {
         soundOn: soundOnSelect.value,
         soundOff: soundOffSelect.value,
         language: langSelect.value
       };
-      
-      chrome.storage.local.set(settings, () => {
-        if (chrome.runtime.lastError) {
-          alert('Error saving: ' + chrome.runtime.lastError.message);
-        } else {
-          const feedback = document.getElementById('save-feedback');
-          feedback.style.display = 'block';
-          feedback.textContent = '✓ SAVED! ON=' + settings.soundOn + ', OFF=' + settings.soundOff;
-          setTimeout(() => { feedback.style.display = 'none'; }, 3000);
-        }
-      });
+
+      await setStorage(settings);
+      showSaveFeedback(settings);
     };
-    
-    // Load saved settings on popup open
-    chrome.storage.local.get(['language', 'soundOn', 'soundOff'], (data) => {
+
+    const initializePopup = async () => {
+      const data = await getStorage(['language', 'soundOn', 'soundOff']);
       if (data.language) langSelect.value = data.language;
       if (data.soundOn) soundOnSelect.value = data.soundOn;
       if (data.soundOff) soundOffSelect.value = data.soundOff;
-    });
-    
-    // Dictation box button
-    dictBoxBtn.onclick = async () => {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id) {
-        chrome.tabs.sendMessage(tab.id, { action: 'toggleDictationBox' });
-        window.close();
-      }
+
+      // Check current state
+      chrome.runtime.sendMessage({ action: 'getState' }, (res) => {
+        if (res?.isRecording) {
+          isRecording = true;
+          micBtn.classList.add('recording');
+          status.textContent = '🔴 Recording...';
+        }
+      });
+
+      // Mic button click
+      micBtn.onclick = async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) return;
+
+        chrome.tabs.sendMessage(tab.id, { action: 'toggleDictation' });
+
+        isRecording = !isRecording;
+        micBtn.classList.toggle('recording', isRecording);
+        status.textContent = isRecording ? '🔴 Recording...' : 'Click to start dictating';
+      };
+
+      // Sound ON change - just play preview
+      soundOnSelect.onchange = () => previewSound(soundOnSelect.value);
+
+      // Sound OFF change - just play preview
+      soundOffSelect.onchange = () => previewSound(soundOffSelect.value);
+
+      // SAVE button - manual save with feedback
+      saveSoundsBtn.onclick = async () => {
+        try {
+          await saveSoundSettings();
+        } catch (err) {
+          alert('Error saving: ' + err.message);
+        }
+      };
+
+      // Dictation box button
+      dictBoxBtn.onclick = async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id) {
+          chrome.tabs.sendMessage(tab.id, { action: 'toggleDictationBox' });
+          window.close();
+        }
+      };
+
+      // Reset mic position button
+      resetMicBtn.onclick = async () => {
+        chrome.storage.local.remove('micPosition');
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id) {
+          chrome.tabs.sendMessage(tab.id, { action: 'resetMicPosition' });
+        }
+      };
     };
-    
-    // Reset mic position button
-    document.getElementById('reset-mic-btn').onclick = async () => {
-      chrome.storage.local.remove('micPosition');
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id) {
-        chrome.tabs.sendMessage(tab.id, { action: 'resetMicPosition' });
-      }
-    };
+
+    initializePopup();
   </script>
 </body>
 </html>
